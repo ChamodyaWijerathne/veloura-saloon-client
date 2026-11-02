@@ -11,6 +11,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ message: "Email is required" }, { status: 400 });
     }
 
+    if(body.password == null){
+        return NextResponse.json({ message: "Password is required" }, { status: 400 });
+    }
+
     const user = await prisma.user.findFirst(
         {
             where:{
@@ -23,9 +27,29 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 
+    if(user.status != "ACTIVE"){
+        return NextResponse.json(
+            {
+                message: "Your account is disablesd. Please contact support for assistance."
+            }, { status: 403 }
+        )
+    }
+
     const isPasswordValid = await compare(body.password, user.password);
 
     if(isPasswordValid){
+
+        await prisma.user.update(
+            {
+                where:{
+                    id: user.id
+                },
+                data:{
+                    lastLogin: new Date()
+                }
+            }
+        )
+
         const secretText = process.env.JOSE_SECRET;
         const secret = new TextEncoder().encode(secretText);
 
@@ -40,7 +64,7 @@ export async function POST(request: NextRequest) {
         const response =NextResponse.json({
             message: "Login successful",
             role: user.role,
-        })
+        }, { status: 200 })
 
         response.cookies.set(
             {
