@@ -26,14 +26,14 @@ export async function getUser(request: NextRequest): Promise<RequestUserType | n
 export async function isPrivileged(request: NextRequest, privilege: string): Promise<boolean> {
     const user: RequestUserType | null = await getUser(request);
 
-    if(user == null){
+    if (!user) {
         return false;
     }
 
-    if(user.privileges.includes(privilege)){
-        return true;
-    }else{
+    if (!Array.isArray(user.privileges)) {
         return false;
     }
+
+    return user.privileges.includes(privilege);
 
 }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getUser, isPrivileged } from "@/utils/authentication";
+import bcrypt from "bcryptjs";
+
 
 export async function GET(request: NextRequest) {
 
@@ -14,32 +16,162 @@ export async function GET(request: NextRequest) {
         )
     }
 
+    const pageNumberInString = request.nextUrl.searchParams.get("pageNumber") || "1";
+    const pageSizeInString = request.nextUrl.searchParams.get("pageSize") || "10";
+    const pageNumber =parseInt(pageNumberInString);
+    const pageSize = parseInt(pageSizeInString);
 
-        const users = await prisma.user.findMany({
-            select:{
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-                role: true,
-                status: true,
-                lastLogin: true,
-                phone: true,
-                password: false,
-                createdAt: true,
-                privileges: true
+    const userCount = await prisma.user.count();
 
-            }
-        })
+    const totalPages = Math.ceil(userCount / pageSize);
+
+    if(pageNumber > totalPages){
+        return NextResponse.json(
+            {
+                message: "Page number exceeds total pages",
+                totalPages: totalPages
+            }, { status: 400 }
+        )
+    }
+
+    const users = await prisma.user.findMany({
+        skip: (pageNumber - 1) * pageSize,
+        take: pageSize,
+        select:{
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            role: true,
+            status: true,
+            lastLogin: true,
+            phone: true,
+            password: false,
+            createdAt: true,
+            privileges: true
+        }
+    })
+
+        // const users = await prisma.user.findMany({
+        //     select:{
+        //         id: true,
+        //         firstName: true,
+        //         lastName: true,
+        //         email: true,
+        //         role: true,
+        //         status: true,
+        //         lastLogin: true,
+        //         phone: true,
+        //         password: false,
+        //         createdAt: true,
+        //         privileges: true
+
+        //     }
+        // })
         return NextResponse.json(
             {
                 message: "Users fetched successfully",
-                users: users
+                users: users,
+                pagination: {
+                    pageNumber: pageNumber,
+                    pageSize: pageSize,
+                    totalPages: totalPages,
+                    totalUsers: userCount
+                }
             }, { status: 200 }
         );
     
 }
         
-    
-    
+export async function POST(request: NextRequest) {
+
+    const body = await request.json();
+
+    if(body.email == null){
+        return NextResponse.json(
+            {
+                message: "Email is required"
+            }, { status: 400 }
+        )
+    }
+
+    if(body.firstName == null){
+        return NextResponse.json(
+            {
+                message: "First name is required"
+            }, { status: 400 }
+        )
+    }
+
+    if(body.lastName == null){
+        return NextResponse.json(
+            {
+                message: "Last name is required"
+            }, { status: 400 }
+        )
+    }
+
+    if(body.password == null){
+        return NextResponse.json(
+            {
+                message: "Password is required"
+            }, { status: 400 }
+        )
+    }
+
+    const existingUser = await prisma.user.findUnique(
+        {
+            where: {
+                email: body.email
+            }
+        }
+    )
+
+    if(existingUser != null){
+        return NextResponse.json(
+            {
+                message: "A user with this email already exists"
+            }, { status: 409 }
+        )
+    }
+
+    const passwordHash = await bcrypt.hash(body.password, 12);
+
+    await prisma.user.create({
+        data:{
+            email: body.email,
+            firstName: body.firstName,
+            lastName: body.lastName,
+            password: passwordHash,
+            phone: body.phone,
+        }
+    })
+
+    return NextResponse.json(
+        {
+            message: "User created successfully"
+        }, { status: 201 }
+    )
+
+} 
+
+export async function PUT(request: NextRequest) {
+    const id = request.nextUrl.searchParams.get("id");
+
+    const requestedUser = await getUser(request);
+
+    if(requestedUser == null){
+        return NextResponse.json(
+            {
+                message: "You are not logged in. Please log in to access this resource."
+            }, { status: 401 }
+        )
+    }
+
+    if(requestedUser.id != id){
+        //user is trying to update thier own profile
+    }else{
+        //user is trying to update someone else's profile
+    }
+}
     
