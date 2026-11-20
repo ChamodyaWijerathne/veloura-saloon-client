@@ -16,27 +16,68 @@ export async function GET(request: NextRequest) {
         )
     }
 
+    const pageNumberInString = request.nextUrl.searchParams.get("pageNumber") || "1";
+    const pageSizeInString = request.nextUrl.searchParams.get("pageSize") || "10";
+    const pageNumber =parseInt(pageNumberInString);
+    const pageSize = parseInt(pageSizeInString);
 
-        const users = await prisma.user.findMany({
-            select:{
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-                role: true,
-                status: true,
-                lastLogin: true,
-                phone: true,
-                password: false,
-                createdAt: true,
-                privileges: true
+    const userCount = await prisma.user.count();
 
-            }
-        })
+    const totalPages = Math.ceil(userCount / pageSize);
+
+    if(pageNumber > totalPages){
+        return NextResponse.json(
+            {
+                message: "Page number exceeds total pages",
+                totalPages: totalPages
+            }, { status: 400 }
+        )
+    }
+
+    const users = await prisma.user.findMany({
+        skip: (pageNumber - 1) * pageSize,
+        take: pageSize,
+        select:{
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            role: true,
+            status: true,
+            lastLogin: true,
+            phone: true,
+            password: false,
+            createdAt: true,
+            privileges: true
+        }
+    })
+
+        // const users = await prisma.user.findMany({
+        //     select:{
+        //         id: true,
+        //         firstName: true,
+        //         lastName: true,
+        //         email: true,
+        //         role: true,
+        //         status: true,
+        //         lastLogin: true,
+        //         phone: true,
+        //         password: false,
+        //         createdAt: true,
+        //         privileges: true
+
+        //     }
+        // })
         return NextResponse.json(
             {
                 message: "Users fetched successfully",
-                users: users
+                users: users,
+                pagination: {
+                    pageNumber: pageNumber,
+                    pageSize: pageSize,
+                    totalPages: totalPages,
+                    totalUsers: userCount
+                }
             }, { status: 200 }
         );
     
