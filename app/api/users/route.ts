@@ -168,9 +168,91 @@ export async function PUT(request: NextRequest) {
         )
     }
 
-    if(requestedUser.id != id){
-        //user is trying to update thier own profile
+    const body = await request.json();
+
+    if(requestedUser.id == id){
+        const user = await prisma.user.findUnique({
+            where:{
+                id: id
+            }
+        })
+        
+        if(user == null){
+            return NextResponse.json(
+                {
+                    message: "User not found"
+                }, { status: 404 }
+            )
+        }
+
+        await prisma.user.update({
+            where:{
+                id: id
+            },
+            data:{
+                email: body.email || user.email,
+                firstName: body.firstName || user.firstName,
+                lastName: body.lastName || user.lastName,
+                phone: body.phone || user.phone,
+                profileImage: body.profileImage || user.profileImage,
+
+            }
+        })
+        return NextResponse.json(
+            {
+                message: "User updated successfully"
+            }, { status: 200 }
+        )
     }else{
+
+        const havePrivilege = await isPrivileged(request, "users:edit");
+
+        if(!havePrivilege){
+            return NextResponse.json({
+                message: "You do not have the privillage to edit other users"
+            },{
+                status:403
+                }
+            )
+        }
+
+        const user = await prisma.user.findUnique({
+            where:{
+                id:id || "<USER_ID>"
+            }
+        })
+
+        if(user == null){
+            return NextResponse.json({
+                message: "User not found"
+            }, {
+                status: 404
+            })
+        }
+
+        await prisma.user.update({
+            where:{
+                id: id || "<USER_ID>"
+            },
+            data:{
+                email: body.email || user.email,
+                firstName: body.firstName || user.firstName,
+                lastName: body.lastName || user.lastName,
+                phone: body.phone || user.phone,
+                profileImage: body.profileImage || user.profileImage,
+                role: body.role || user.role,
+                status: body.status || user.status,
+                privileges: body.privileges || user.privileges
+            }
+        })
+
+        return NextResponse.json({
+            message: "User updated successfully"
+        }, { status: 200 }
+        )
+
+
+
         //user is trying to update someone else's profile
     }
 }
